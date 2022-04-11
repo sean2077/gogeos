@@ -4,26 +4,26 @@ import (
 	"testing"
 )
 
-var wktWriterTests = []struct{ in, out string }{
+var wktEncoderTests = []struct{ in, out string }{
 	{"POINT(-117 33)", "POINT (-117.0000000000000000 33.0000000000000000)"},
 }
 
-func TestWKTWriter(t *testing.T) {
-	writer := NewWKTWriter()
-	reader := NewWKTReader()
+func TestWktEncoder(t *testing.T) {
+	encoder := newWktEncoder()
+	decoder := newWktDecoder()
 	var geom *Geometry
 	var err error
-	for _, test := range wktWriterTests {
-		geom, err = reader.Read(test.in)
+	for _, test := range wktEncoderTests {
+		geom, err = decoder.decode(test.in)
 		if err != nil {
-			t.Errorf("WKTReader.Read(): %v", err)
+			t.Errorf("wktDecoder.decode(): %v", err)
 		}
-		actual, err := writer.Write(geom)
+		actual, err := encoder.encode(geom)
 		if err != nil {
-			t.Errorf("WKTWriter.Write(): %v", err)
+			t.Errorf("wktEncoder.encode(): %v", err)
 		}
 		if actual != test.out {
-			t.Errorf("WKTWriter.Write(): want %v, got %v", test.out, actual)
+			t.Errorf("wktEncoder.encode(): want %v, got %v", test.out, actual)
 		}
 	}
 }

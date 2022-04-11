@@ -1,6 +1,7 @@
 package geos
 
 import (
+	"bytes"
 	"io/ioutil"
 	"math"
 	"testing"
@@ -43,12 +44,12 @@ func TestGeometryTypeString(t *testing.T) {
 
 func TestGeometryType(t *testing.T) {
 	g := Must(FromWKT("POINT(10 10)"))
-	typeId, err := g.Type()
+	typeID, err := g.Type()
 	if err != nil {
 		panic(err)
 	}
-	if typeId != POINT {
-		t.Errorf("Geometry.Type(): wanted %v, got %v", POINT, typeId)
+	if typeID != POINT {
+		t.Errorf("Geometry.Type(): wanted %v, got %v", POINT, typeID)
 	}
 }
 
@@ -93,36 +94,55 @@ func TestGeometryBuffer(t *testing.T) {
 
 const bufferPoly = `POLYGON ((1.0000000000000000 0.0000000000000000, 0.9807852804032304 -0.1950903220161281, 0.9238795325112870 -0.3826834323650894, 0.8314696123025456 -0.5555702330196017, 0.7071067811865481 -0.7071067811865470, 0.5555702330196032 -0.8314696123025447, 0.3826834323650908 -0.9238795325112863, 0.1950903220161296 -0.9807852804032302, 0.0000000000000016 -1.0000000000000000, -0.1950903220161265 -0.9807852804032308, -0.3826834323650878 -0.9238795325112875, -0.5555702330196004 -0.8314696123025465, -0.7071067811865459 -0.7071067811865492, -0.8314696123025438 -0.5555702330196043, -0.9238795325112857 -0.3826834323650923, -0.9807852804032299 -0.1950903220161312, -1.0000000000000000 -0.0000000000000032, -0.9807852804032311 0.1950903220161249, -0.9238795325112882 0.3826834323650864, -0.8314696123025475 0.5555702330195990, -0.7071067811865505 0.7071067811865446, -0.5555702330196060 0.8314696123025428, -0.3826834323650936 0.9238795325112852, -0.1950903220161322 0.9807852804032297, -0.0000000000000037 1.0000000000000000, 0.1950903220161248 0.9807852804032311, 0.3826834323650867 0.9238795325112881, 0.5555702330195996 0.8314696123025469, 0.7071067811865455 0.7071067811865496, 0.8314696123025438 0.5555702330196044, 0.9238795325112859 0.3826834323650920, 0.9807852804032300 0.1950903220161305, 1.0000000000000000 0.0000000000000000))`
 
+func TestGeometryBufferWithOpts(t *testing.T) {
+	g := Must(FromWKT("POINT (0 0)"))
+	opts := BufferOpts{QuadSegs: 8, CapStyle: CapRound, JoinStyle: JoinRound, MitreLimit: 5.0}
+	b := Must(g.BufferWithOpts(1.0, opts))
+	expected := Must(FromWKT(bufferPoly))
+	if !mustEqual(b.EqualsExact(expected, 0.000001)) {
+		t.Errorf("want %v, got %v", expected, b)
+	}
+}
+
+func TestOffsetCurve(t *testing.T) {
+	g := Must(FromWKT("LINESTRING (0 10, 5 0, 10 10)"))
+	opts := BufferOpts{QuadSegs: 8, JoinStyle: JoinRound, MitreLimit: 5.0}
+	curve := Must(g.OffsetCurve(1.0, opts))
+	expected := Must(FromWKT(offsetCurve))
+	if !mustEqual(curve.EqualsExact(expected, 0.000001)) {
+		t.Errorf("want %v, got %v", expected, curve)
+	}
+}
+
+const offsetCurve = `LINESTRING (0.8944271909999159 10.4472135954999583, 5.0000000000000000 2.2360679774997907, 9.1055728090000834 10.4472135954999583)`
+
 func reconstructGeom(g *Geometry) *Geometry {
-	typeId, err := g.Type()
+	typeID, err := g.Type()
 	if err != nil {
 		panic(err)
 	}
-	switch typeId {
+	switch typeID {
 	case POINT:
-		cs := MustCoordSeq(MustCoordSeq(g.CoordSeq()).Clone())
-		return Must(NewPoint(cs))
+		coords := MustCoords(g.Coords())
+		return Must(NewPoint(coords...))
 	case LINESTRING:
-		cs := MustCoordSeq(MustCoordSeq(g.CoordSeq()).Clone())
-		return Must(NewLineString(cs))
+		coords := MustCoords(g.Coords())
+		return Must(NewLineString(coords...))
 	case LINEARRING:
-		cs := MustCoordSeq(MustCoordSeq(g.CoordSeq()).Clone())
-		return Must(NewLinearRing(cs))
+		coords := MustCoords(g.Coords())
+		return Must(NewLinearRing(coords...))
 	case POLYGON:
-		extRing := Must(g.ExteriorRing())
-		cs := MustCoordSeq(MustCoordSeq(extRing.CoordSeq()).Clone())
-		shell := Must(NewLinearRing(cs))
-		nIntRing, err := g.NInteriorRing()
+		shell := Must(g.Shell())
+		shellCoords := MustCoords(shell.Coords())
+		holes, err := g.Holes()
 		if err != nil {
 			panic(err)
 		}
-		var holes []*Geometry
-		for i := 0; i < nIntRing; i++ {
-			tmp := Must(g.InteriorRing(i))
-			cs := MustCoordSeq(MustCoordSeq(tmp.CoordSeq()).Clone())
-			holes = append(holes, Must(NewLinearRing(cs)))
+		holesCoords := make([][]Coord, len(holes))
+		for i, ring := range holes {
+			holesCoords[i] = MustCoords(ring.Coords())
 		}
-		return Must(NewPolygon(shell, holes...))
+		return Must(NewPolygon(shellCoords, holesCoords...))
 	case MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION:
 		n, err := g.NGeometry()
 		if err != nil {
@@ -133,7 +153,7 @@ func reconstructGeom(g *Geometry) *Geometry {
 			geom := Must(g.Geometry(i))
 			geoms = append(geoms, reconstructGeom(geom))
 		}
-		return Must(NewCollection(typeId, geoms...))
+		return Must(NewCollection(typeID, geoms...))
 	}
 	return nil
 }
@@ -148,24 +168,6 @@ func TestGeomConstructors(t *testing.T) {
 	g2 := reconstructGeom(g1)
 	if !mustEqual(g1.Equals(g2)) {
 		t.Errorf("Fine-grained geometry reconstruction failed")
-	}
-}
-
-func TestEmptyGeomConstructors(t *testing.T) {
-	var tests = []struct {
-		_type string
-		fn    func() (*Geometry, error)
-	}{
-		{"POINT", EmptyPoint},
-		{"LINESTRING", EmptyLineString},
-		{"POLYGON", EmptyPolygon},
-	}
-	for _, test := range tests {
-		g1 := Must(test.fn())
-		expected := Must(FromWKT(test._type + " EMPTY"))
-		if g1.String() != expected.String() {
-			t.Errorf("Empty%s(): not empty! got %v", test._type, expected)
-		}
 	}
 }
 
@@ -277,33 +279,40 @@ func TestNCoordinate(t *testing.T) {
 	}
 }
 
-func TestExteriorRing(t *testing.T) {
+func TestShell(t *testing.T) {
 	g := Must(FromWKT("POLYGON((0 0, 0 2, 2 2, 2 0, 0 0), (1 1, 1 1.5, 1.5 1.5, 1.5 1, 1 1))"))
-	ext := Must(g.ExteriorRing())
+	ext := Must(g.Shell())
 	expected := Must(FromWKT("LINEARRING(0 0, 0 2, 2 2, 2 0, 0 0)"))
 	if !mustEqual(ext.Equals(expected)) {
-		t.Errorf("ExteriorRing(): should equal! got %v", ext)
+		t.Errorf("Shell(): should equal! got %v", ext)
 	}
 }
 
-func TestInteriorRing(t *testing.T) {
+func TestHoles(t *testing.T) {
 	poly := Must(FromWKT(`POLYGON((0 0, 0 6, 6 6, 6 0, 0 0),
                                   (1 1, 2 1, 2 2, 1 2, 1 1),
                                   (1 3, 2 3, 2 4, 1 4, 1 3),
                                   (3 2, 4 2, 4 3, 3 3, 3 2))`))
-	tests := []struct {
-		wkt string
-		n   int
-	}{
-		{"LINEARRING(1 1, 2 1, 2 2, 1 2, 1 1)", 0},
-		{"LINEARRING(1 3, 2 3, 2 4, 1 4, 1 3)", 1},
-		{"LINEARRING(3 2, 4 2, 4 3, 3 3, 3 2)", 2},
+	tests := [][]string{
+		{
+			"LINEARRING(1 1, 2 1, 2 2, 1 2, 1 1)",
+			"LINEARRING(1 3, 2 3, 2 4, 1 4, 1 3)",
+			"LINEARRING(3 2, 4 2, 4 3, 3 3, 3 2)",
+		},
 	}
-	for _, test := range tests {
-		g := Must(FromWKT(test.wkt))
-		intring := Must(poly.InteriorRing(test.n))
-		if !mustEqual(intring.Equals(g)) {
-			t.Errorf("ExteriorRing(%v): should equal! got %v", test.n, intring)
+	for i, holeWkts := range tests {
+		holes, err := poly.Holes()
+		if err != nil {
+			t.Fatalf("#%d: %v", i, err)
+		}
+		if len(holes) != len(holeWkts) {
+			t.Errorf("#%d: want %d holes, got %d", i, len(holeWkts), len(holes))
+		}
+		for j, wkt := range holeWkts {
+			ring := Must(FromWKT(wkt))
+			if !mustEqual(holes[j].Equals(ring)) {
+				t.Errorf("#%d: want int ring to equal! got %v", i, holes[j])
+			}
 		}
 	}
 }
@@ -340,17 +349,6 @@ func TestNPoint(t *testing.T) {
 	}
 	if n != 2 {
 		t.Errorf("NPoint(): want 2 got %v", n)
-	}
-}
-
-func TestNInteriorRing(t *testing.T) {
-	poly := Must(FromWKT(`POLYGON((0 0, 0 6, 6 6, 6 0, 0 0),
-                                  (1 1, 2 1, 2 2, 1 2, 1 1),
-                                  (1 3, 2 3, 2 4, 1 4, 1 3),
-                                  (3 2, 4 2, 4 3, 3 3, 3 2))`))
-	expected := 3
-	if n := mustInt(poly.NInteriorRing()); n != expected {
-		t.Errorf("NInteriorRing(): want %v got %v", expected, n)
 	}
 }
 
@@ -838,5 +836,230 @@ func TestClone(t *testing.T) {
 	}
 	if g1.g == g2.g {
 		t.Errorf("Cloned geom's C ptrs should not equal!")
+	}
+}
+
+// Constructors
+
+var basicConstructorTests = []struct {
+	coords []Coord
+	ctor   func(...Coord) (*Geometry, error)
+	err    bool
+	empty  bool
+}{
+	{nil, NewPoint, false, true},
+	{[]Coord{NewCoord(-117, 35)}, NewPoint, false, false},
+	{[]Coord{NewCoord(-117, 35), NewCoord(0, 0)}, NewPoint, true, false},
+	{nil, NewLineString, false, true},
+	{[]Coord{NewCoord(0, 0), NewCoord(10, 10), NewCoord(20, 20)}, NewLineString, false, false},
+	{nil, NewLinearRing, false, true},
+	{[]Coord{NewCoord(0, 0), NewCoord(10, 10), NewCoord(10, 0), NewCoord(0, 0)}, NewLinearRing, false, false},
+	{[]Coord{NewCoord(0, 0)}, NewLinearRing, true, false},
+	{[]Coord{NewCoord(0, 0), NewCoord(10, 10), NewCoord(0, 0)}, NewLinearRing, true, false},
+}
+
+func TestConstructors(t *testing.T) {
+	for i, test := range basicConstructorTests {
+		geom, err := test.ctor(test.coords...)
+		if err != nil {
+			if !test.err {
+				t.Errorf("#%d: ctor: want no error, got: %v", i, err)
+			}
+			continue
+		}
+		empty, err := geom.IsEmpty()
+		if err != nil {
+			t.Errorf("#%d: empty error: %v", i, err)
+			continue
+		}
+		if empty != test.empty {
+			t.Errorf("#%d: empty: want %v, got %v", i, test.empty, empty)
+		}
+	}
+}
+
+var polygonConstructorTests = []struct {
+	shell []Coord
+	holes [][]Coord
+	err   bool
+	empty bool
+}{
+	{nil, nil, false, true},
+	{[]Coord{NewCoord(0, 0), NewCoord(10, 10), NewCoord(10, 0), NewCoord(0, 0)}, nil, false, false},
+	{
+		[]Coord{NewCoord(0, 0), NewCoord(10, 10), NewCoord(10, 0), NewCoord(0, 0)},
+		[][]Coord{[]Coord{NewCoord(2, 1), NewCoord(2, 2), NewCoord(3, 1), NewCoord(2, 1)}},
+		false,
+		false,
+	},
+	{[]Coord{NewCoord(0, 0), NewCoord(10, 10), NewCoord(10, 0)}, nil, true, false},
+}
+
+func TestPolygonConstructor(t *testing.T) {
+	for i, test := range polygonConstructorTests {
+		geom, err := NewPolygon(test.shell, test.holes...)
+		if err != nil {
+			if !test.err {
+				t.Errorf("#%d: ctor: want no error, got: %v", i, err)
+			}
+			continue
+		}
+		empty, err := geom.IsEmpty()
+		if err != nil {
+			t.Errorf("#%d: empty error: %v", i, err)
+			continue
+		}
+		if empty != test.empty {
+			t.Errorf("#%d: empty: want %v, got %v", i, test.empty, empty)
+		}
+	}
+}
+
+func TestLineStringLinearRingEqual(t *testing.T) {
+	line := Must(FromWKT("LINESTRING (0 0, 10 10, 10 0, 0 0)"))
+	ring := Must(FromWKT("LINEARRING (0 0, 10 10, 10 0, 0 0)"))
+	if !mustEqual(line.Equals(ring)) {
+		t.Errorf("expected equal!")
+	}
+}
+
+var relateTests = []struct {
+	g1, g2 string
+	pat    string
+}{
+	{
+		"POLYGON ((60 160, 220 160, 220 20, 60 20, 60 160))",
+		"POLYGON ((60 160, 20 200, 260 200, 140 80, 60 160))",
+		"212101212",
+	},
+}
+
+func TestRelate(t *testing.T) {
+	for i, test := range relateTests {
+		g1 := Must(FromWKT(test.g1))
+		g2 := Must(FromWKT(test.g2))
+		pat, err := g1.Relate(g2)
+		if err != nil {
+			t.Fatalf("#%d %v", i, err)
+		}
+		if pat != test.pat {
+			t.Errorf("#%d want %v got %v", i, test.pat, pat)
+		}
+	}
+}
+
+var relatePatTests = []struct {
+	g1, g2 string
+	pat    string
+	relate bool
+}{
+	{
+		"POLYGON ((60 160, 220 160, 220 20, 60 20, 60 160))",
+		"POLYGON ((60 160, 20 200, 260 200, 140 80, 60 160))",
+		"212101212",
+		true,
+	},
+}
+
+func TestRelatePat(t *testing.T) {
+	for i, test := range relatePatTests {
+		g1 := Must(FromWKT(test.g1))
+		g2 := Must(FromWKT(test.g2))
+		ok, err := g1.RelatePat(g2, test.pat)
+		if err != nil {
+			t.Fatalf("#%d %v", i, err)
+		}
+		if ok != test.relate {
+			t.Errorf("#%d want %v got %v", i, test.relate, ok)
+		}
+	}
+}
+
+func TestFromWKB(t *testing.T) {
+	for i, test := range wkbDecoderTests {
+		g1 := Must(FromWKB(test.wkb))
+		g2 := Must(FromWKT(test.wkt))
+		if !mustEqual(g1.Equals(g2)) {
+			t.Errorf("#%d want %v got %v", i, test.wkt, g1.String())
+		}
+	}
+}
+
+func TestFromHex(t *testing.T) {
+	for i, test := range wkbDecoderHexTests {
+		g1 := Must(FromHex(test.hex))
+		g2 := Must(FromWKT(test.wkt))
+		if !mustEqual(g1.Equals(g2)) {
+			t.Errorf("#%d want %v got %v", i, test.wkt, g1.String())
+		}
+	}
+}
+
+func TestWKB(t *testing.T) {
+	for i, test := range wkbEncoderTests {
+		g := Must(FromWKT(test.wkt))
+		wkb, err := g.WKB()
+		if err != nil {
+			t.Fatalf("#%d %v", i, err)
+		}
+		if !bytes.Equal(wkb, test.wkb) {
+			t.Errorf("#%d want %v got %v", test.wkb, wkb)
+		}
+	}
+}
+
+func TestHex(t *testing.T) {
+	for i, test := range wkbEncoderHexTests {
+		g := Must(FromWKT(test.wkt))
+		hex, err := g.Hex()
+		if err != nil {
+			t.Fatalf("#%d %v", i, err)
+		}
+		if !bytes.Equal(hex, test.wkb) {
+			t.Errorf("#%d want %v got %v", string(test.wkb), string(hex))
+		}
+	}
+}
+
+func TestLineInterpolatePointDistError(t *testing.T) {
+	line := Must(FromWKT("LINESTRING(0 0, 10 10)"))
+	_, err := line.LineInterpolatePoint(-0.1)
+	if err != ErrLineInterpolatePointDist {
+		t.Errorf("must not allow negative distance")
+	}
+	_, err = line.LineInterpolatePoint(1.1)
+	if err != ErrLineInterpolatePointDist {
+		t.Errorf("must not allow distance greater than 1.0")
+	}
+}
+
+func TestLineInterpolatePointTypeError(t *testing.T) {
+	pt := Must(FromWKT("POINT(0 0)"))
+	_, err := pt.LineInterpolatePoint(0.0)
+	if err != ErrLineInterpolatePointType {
+		t.Errorf("only permitted on linestrings")
+	}
+}
+
+func TestLineInterpolatePoint(t *testing.T) {
+	var tests = []struct {
+		line string
+		dist float64
+		pt   string
+	}{
+		{"LINESTRING(25 50, 75 75, 100 35)", 0.0, "POINT(25 50)"},
+		{"LINESTRING(25 50, 75 75, 100 35)", 1.0, "POINT(100 35)"},
+		{"LINESTRING(25 50, 100 125, 150 190)", 0.2, "POINT (51.5974135047432014 76.5974135047432014)"},
+	}
+	for i, test := range tests {
+		line := Must(FromWKT(test.line))
+		actual, err := line.LineInterpolatePoint(test.dist)
+		if err != nil {
+			t.Fatalf("#%d %s", i, err)
+		}
+		expected := Must(FromWKT(test.pt))
+		if !mustEqual(actual.Equals(expected)) {
+			t.Errorf("#%d want %v got %v", i, test.pt, actual.String())
+		}
 	}
 }

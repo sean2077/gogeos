@@ -11,73 +11,68 @@ import (
 )
 
 // Reads the WKT serialization and produces geometries
-type WKTReader struct {
+type wktDecoder struct {
 	r *C.GEOSWKTReader
 }
 
-// Creates a new WKT reader, can be nil if initialization in the C API fails
-func NewWKTReader() *WKTReader {
-	r := C.GEOSWKTReader_create_r(handle)
+// Creates a new WKT decoder, can be nil if initialization in the C API fails
+func newWktDecoder() *wktDecoder {
+	r := cGEOSWKTReader_create()
 	if r == nil {
 		return nil
 	}
-	reader := &WKTReader{r}
-	runtime.SetFinalizer(reader, (*WKTReader).destroy)
-	return reader
+	d := &wktDecoder{r}
+	runtime.SetFinalizer(d, (*wktDecoder).destroy)
+	return d
 }
 
-var DefaultWKTReader *WKTReader
-
-// Reads the WKT string and creates a geometry
-func (r *WKTReader) Read(wkt string) (*Geometry, error) {
+// decode decodes the WKT string and returns a geometry
+func (d *wktDecoder) decode(wkt string) (*Geometry, error) {
 	cstr := C.CString(wkt)
 	defer C.free(unsafe.Pointer(cstr))
-	g := C.GEOSWKTReader_read_r(handle, r.r, cstr)
+	g := cGEOSWKTReader_read(d.r, cstr)
 	if g == nil {
 		return nil, Error()
 	}
-    // XXX: GeomFromPtr
-	return &Geometry{g}, nil
+	gg := geomFromPtr(g)
+	runtime.KeepAlive(d)
+	return gg, nil
 }
 
-func (r *WKTReader) destroy() {
+func (d *wktDecoder) destroy() {
 	// XXX: mutex
-	C.GEOSWKTReader_destroy_r(handle, r.r)
-	r.r = nil
+	cGEOSWKTReader_destroy(d.r)
+	d.r = nil
 }
 
-type WKTWriter struct {
+type wktEncoder struct {
 	w *C.GEOSWKTWriter
 }
 
-func NewWKTWriter() *WKTWriter {
-	w := C.GEOSWKTWriter_create_r(handle)
+func newWktEncoder() *wktEncoder {
+	w := cGEOSWKTWriter_create()
 	if w == nil {
 		return nil
 	}
-	writer := &WKTWriter{w}
-	runtime.SetFinalizer(writer, (*WKTWriter).destroy)
-	return writer
+	e := &wktEncoder{w}
+	runtime.SetFinalizer(e, (*wktEncoder).destroy)
+	return e
 }
 
-var DefaultWKTWriter *WKTWriter
-
-func (w *WKTWriter) Write(g *Geometry) (string, error) {
-    // XXX: free?
-	cstr := C.GEOSWKTWriter_write_r(handle, w.w, g.g)
+// Encode returns a string that is the geometry encoded as WKT
+func (e *wktEncoder) encode(g *Geometry) (string, error) {
+	cstr := cGEOSWKTWriter_write(e.w, g.g)
+	defer C.free(unsafe.Pointer(cstr))
 	if cstr == nil {
 		return "", Error()
 	}
-	return C.GoString(cstr), nil
+	ret := C.GoString(cstr)
+	runtime.KeepAlive(e)
+	return ret, nil
 }
 
-func (w *WKTWriter) destroy() {
+func (e *wktEncoder) destroy() {
 	// XXX: mutex
-	C.GEOSWKTWriter_destroy_r(handle, w.w)
-	w.w = nil
-}
-
-func init() {
-	DefaultWKTReader = NewWKTReader()
-	DefaultWKTWriter = NewWKTWriter()
+	cGEOSWKTWriter_destroy(e.w)
+	e.w = nil
 }
