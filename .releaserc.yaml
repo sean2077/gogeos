@@ -4,8 +4,6 @@
 branches:
   - master # 正式发布
   - next # 新的重大更改的版本
-  - name: dev # 开发分支
-    prerelease: "true"
   - name: alpha # 预发布
     prerelease: "true"
   - name: beta # 预发布
