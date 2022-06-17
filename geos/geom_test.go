@@ -2,6 +2,8 @@ package geos
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"math"
 	"testing"
@@ -56,9 +58,8 @@ func TestGeometryType(t *testing.T) {
 func TestGeometryProject(t *testing.T) {
 	ls := Must(FromWKT("LINESTRING(0 0, 1 1)"))
 	pt := Must(FromWKT("POINT(0 1)"))
-	expected := 0.7071067811865476
 	actual := ls.Project(pt)
-	if expected != actual {
+	if expected := 0.7071067811865476; expected != actual {
 		t.Errorf("Geometry.Project(): want %v, got %v", expected, actual)
 	}
 }
@@ -289,10 +290,14 @@ func TestShell(t *testing.T) {
 }
 
 func TestHoles(t *testing.T) {
-	poly := Must(FromWKT(`POLYGON((0 0, 0 6, 6 6, 6 0, 0 0),
+	poly := Must(
+		FromWKT(
+			`POLYGON((0 0, 0 6, 6 6, 6 0, 0 0),
                                   (1 1, 2 1, 2 2, 1 2, 1 1),
                                   (1 3, 2 3, 2 4, 1 4, 1 3),
-                                  (3 2, 4 2, 4 3, 3 3, 3 2))`))
+                                  (3 2, 4 2, 4 3, 3 3, 3 2))`,
+		),
+	)
 	tests := [][]string{
 		{
 			"LINEARRING(1 1, 2 1, 2 2, 1 2, 1 1)",
@@ -454,9 +459,9 @@ func TestHasZ(t *testing.T) {
 	}
 }
 
-//func TestIsRing ...
+// func TestIsRing ...
 
-//func TestIsSimple ...
+// func TestIsSimple ...
 
 func TestIsEmpty(t *testing.T) {
 	tests := []struct {
@@ -516,7 +521,7 @@ func TestBinaryTopo(t *testing.T) {
 		g2 := Must(FromWKT(test.g2))
 		expected := Must(FromWKT(test.out))
 		if actual := Must(test.method(g1, g2)); !mustEqual(expected.Equals(actual)) {
-			t.Errorf("%+V(): want %v got %v", test.method, expected, actual)
+			t.Errorf("%s(): want %v got %v", getFuncName(test.method), expected, actual)
 		}
 	}
 }
@@ -576,7 +581,7 @@ var unaryTopoTests = []struct {
 	},
 	{
 		"MULTIPOLYGON(((0 0, 10 0, 10 10, 0 10, 0 0)), ((5 5, 15 5, 15 15, 5 15, 5 5)))",
-		"POLYGON ((10 5, 10 0, 0 0, 0 10, 5 10, 5 15, 15 15, 15 5, 10 5))",
+		"POLYGON ((10 0, 0 0, 0 10, 5 10, 5 15, 15 15, 15 5, 10 5, 10 0))",
 		(*Geometry).UnaryUnion,
 	},
 	{
@@ -611,7 +616,7 @@ func TestUnaryTopo(t *testing.T) {
 		g1 := Must(FromWKT(test.g1))
 		expected := Must(FromWKT(test.out))
 		if actual := Must(test.method(g1)); !mustEqual(actual.EqualsExact(expected, 0.0)) {
-			t.Errorf("%+V(): want %v got %v", test.method, expected, actual)
+			t.Errorf("%s(): want %v got %v", getFuncName(test.method), expected, actual)
 		}
 	}
 }
@@ -640,7 +645,7 @@ func TestSimplifyMethods(t *testing.T) {
 		g1 := Must(FromWKT(test.g1))
 		expected := Must(FromWKT(test.out))
 		if actual := Must(test.method(g1, test.tol)); !mustEqual(actual.EqualsExact(expected, 0.0)) {
-			t.Errorf("%+V(): want %v got %v", test.method, expected, actual)
+			t.Errorf("%s(): want %v got %v", getFuncName(test.method), expected, actual)
 		}
 	}
 }
@@ -783,7 +788,7 @@ func TestBinaryPred(t *testing.T) {
 		g1 := Must(FromWKT(test.g1))
 		g2 := Must(FromWKT(test.g2))
 		if actual := mustBool(test.method(g1, g2)); actual != test.pred {
-			t.Errorf("%+V(): want %v got %v", test.method, test.pred, actual)
+			t.Errorf("%s(): want %v got %v", getFuncName(test.method), test.pred, actual)
 		}
 	}
 }
@@ -888,7 +893,7 @@ var polygonConstructorTests = []struct {
 	{[]Coord{NewCoord(0, 0), NewCoord(10, 10), NewCoord(10, 0), NewCoord(0, 0)}, nil, false, false},
 	{
 		[]Coord{NewCoord(0, 0), NewCoord(10, 10), NewCoord(10, 0), NewCoord(0, 0)},
-		[][]Coord{[]Coord{NewCoord(2, 1), NewCoord(2, 2), NewCoord(3, 1), NewCoord(2, 1)}},
+		[][]Coord{{NewCoord(2, 1), NewCoord(2, 2), NewCoord(3, 1), NewCoord(2, 1)}},
 		false,
 		false,
 	},
@@ -1003,7 +1008,7 @@ func TestWKB(t *testing.T) {
 			t.Fatalf("#%d %v", i, err)
 		}
 		if !bytes.Equal(wkb, test.wkb) {
-			t.Errorf("#%d want %v got %v", test.wkb, wkb)
+			t.Errorf("#%d want %v got %v", i, test.wkb, wkb)
 		}
 	}
 }
@@ -1016,7 +1021,7 @@ func TestHex(t *testing.T) {
 			t.Fatalf("#%d %v", i, err)
 		}
 		if !bytes.Equal(hex, test.wkb) {
-			t.Errorf("#%d want %v got %v", string(test.wkb), string(hex))
+			t.Errorf("#%d want %v got %v", i, string(test.wkb), string(hex))
 		}
 	}
 }
@@ -1024,11 +1029,11 @@ func TestHex(t *testing.T) {
 func TestLineInterpolatePointDistError(t *testing.T) {
 	line := Must(FromWKT("LINESTRING(0 0, 10 10)"))
 	_, err := line.LineInterpolatePoint(-0.1)
-	if err != ErrLineInterpolatePointDist {
+	if !errors.Is(err, ErrLineInterpolatePointDist) {
 		t.Errorf("must not allow negative distance")
 	}
 	_, err = line.LineInterpolatePoint(1.1)
-	if err != ErrLineInterpolatePointDist {
+	if !errors.Is(err, ErrLineInterpolatePointDist) {
 		t.Errorf("must not allow distance greater than 1.0")
 	}
 }
@@ -1036,7 +1041,7 @@ func TestLineInterpolatePointDistError(t *testing.T) {
 func TestLineInterpolatePointTypeError(t *testing.T) {
 	pt := Must(FromWKT("POINT(0 0)"))
 	_, err := pt.LineInterpolatePoint(0.0)
-	if err != ErrLineInterpolatePointType {
+	if !errors.Is(err, ErrLineInterpolatePointType) {
 		t.Errorf("only permitted on linestrings")
 	}
 }
@@ -1061,5 +1066,31 @@ func TestLineInterpolatePoint(t *testing.T) {
 		if !mustEqual(actual.Equals(expected)) {
 			t.Errorf("#%d want %v got %v", i, test.pt, actual.String())
 		}
+	}
+}
+
+func TestGeometry_IsValid(t *testing.T) {
+	tests := []struct {
+		polygon string
+		want    bool
+		wantErr bool
+	}{
+		{"POLYGON ((60 160, 220 160, 220 20, 60 20, 60 160))", true, false},
+		{"POLYGON ((0 0, 1 1, 1 0, 0 1, 0 0))", false, false},
+	}
+	for i, tt := range tests {
+		t.Run(
+			fmt.Sprintf("case%d", i), func(t *testing.T) {
+				g := Must(FromWKT(tt.polygon))
+				got, err := g.IsValid()
+				if (err != nil) != tt.wantErr {
+					t.Errorf("IsValid() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if got != tt.want {
+					t.Errorf("IsValid() got = %v, want %v", got, tt.want)
+				}
+			},
+		)
 	}
 }
