@@ -33,9 +33,11 @@ type Geometry struct {
 // underlying C object.
 func geomFromPtr(ptr *C.GEOSGeometry) *Geometry {
 	g := &Geometry{g: ptr}
-	runtime.SetFinalizer(g, func(g *Geometry) {
-		cGEOSGeom_destroy(ptr)
-	})
+	runtime.SetFinalizer(
+		g, func(g *Geometry) {
+			cGEOSGeom_destroy(ptr)
+		},
+	)
 	return g
 }
 
@@ -317,14 +319,23 @@ type BufferOpts struct {
 //  - end cap style (see CapStyle consts)
 //  - join style (see JoinStyle consts)
 func (g *Geometry) BufferWithOpts(width float64, opts BufferOpts) (*Geometry, error) {
-	return geomFromC("BufferWithOpts", cGEOSBufferWithStyle(g.g, C.double(width), C.int(opts.QuadSegs), C.int(opts.CapStyle), C.int(opts.JoinStyle), C.double(opts.MitreLimit)))
+	return geomFromC(
+		"BufferWithOpts", cGEOSBufferWithStyle(
+			g.g, C.double(width), C.int(opts.QuadSegs), C.int(opts.CapStyle), C.int(opts.JoinStyle),
+			C.double(opts.MitreLimit),
+		),
+	)
 }
 
 // OffsetCurve computes a new linestring that is offset from the input
 // linestring by the given distance and buffer options.  A negative distance is
 // offset on the right side; positive distance offset on the left side.
 func (g *Geometry) OffsetCurve(distance float64, opts BufferOpts) (*Geometry, error) {
-	return geomFromC("OffsetCurve", cGEOSOffsetCurve(g.g, C.double(distance), C.int(opts.QuadSegs), C.int(opts.JoinStyle), C.double(opts.MitreLimit)))
+	return geomFromC(
+		"OffsetCurve", cGEOSOffsetCurve(
+			g.g, C.double(distance), C.int(opts.QuadSegs), C.int(opts.JoinStyle), C.double(opts.MitreLimit),
+		),
+	)
 }
 
 // Geometry Constructors
@@ -755,7 +766,7 @@ func (g *Geometry) Coords() ([]Coord, error) {
 	if ptr == nil {
 		return nil, Error()
 	}
-	//cs := coordSeqFromPtr(ptr)
+	// cs := coordSeqFromPtr(ptr)
 	cs := &coordSeq{c: ptr}
 	return coordSlice(cs)
 }
@@ -820,7 +831,9 @@ func (g *Geometry) HausdorffDistance(other *Geometry) (float64, error) {
 // HausdorffDistance) with an additional densification fraction amount.
 func (g *Geometry) HausdorffDistanceDensify(other *Geometry, densifyFrac float64) (float64, error) {
 	var d C.double
-	return float64FromC("HausdorffDistanceDensify", cGEOSHausdorffDistanceDensify(g.g, other.g, C.double(densifyFrac), &d), d)
+	return float64FromC(
+		"HausdorffDistanceDensify", cGEOSHausdorffDistanceDensify(g.g, other.g, C.double(densifyFrac), &d), d,
+	)
 }
 
 // DE-9IM
@@ -834,7 +847,7 @@ func (g *Geometry) Relate(other *Geometry) (string, error) {
 		return "", Error()
 	}
 	s := C.GoString(cs)
-	//cGEOSFree(unsafe.Pointer(cs))
+	// cGEOSFree(unsafe.Pointer(cs))
 	return s, nil
 }
 
@@ -844,6 +857,11 @@ func (g *Geometry) RelatePat(other *Geometry, pat string) (bool, error) {
 	cs := C.CString(pat)
 	defer C.free(unsafe.Pointer(cs))
 	return boolFromC("RelatePat", cGEOSRelatePattern(g.g, other.g, cs))
+}
+
+// IsValid returns true if the geometry is valid.
+func (g *Geometry) IsValid() (bool, error) {
+	return g.unaryPred("IsValid", cGEOSisValid)
 }
 
 // various wrappers around C API
@@ -922,6 +940,8 @@ func (g *Geometry) binaryFloat(name string, cfn binaryFloatGetter, other *Geomet
 	return float64FromC(name, cfn(g.g, other.g, &d), d)
 }
 
-func (g *Geometry) simplify(name string, cfn func(*C.GEOSGeometry, C.double) *C.GEOSGeometry, d float64) (*Geometry, error) {
+func (g *Geometry) simplify(name string, cfn func(*C.GEOSGeometry, C.double) *C.GEOSGeometry, d float64) (
+	*Geometry, error,
+) {
 	return geomFromC(name, cfn(g.g, C.double(d)))
 }
