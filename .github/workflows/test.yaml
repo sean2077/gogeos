@@ -47,9 +47,9 @@ jobs:
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v2
-        version: "v0.1.15"
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          version: "v0.1.15"
           files: coverage.txt
           fail_ci_if_error: true
           name: Codecov
