@@ -36,8 +36,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt-get update -yqq
-          apt-get install pkg-config libgeos-dev -y
+          sudo apt-get update -yqq
+          sudo apt-get install pkg-config libgeos-dev -y
 
       - name: Install go dependencies
         run: go get -t -v ./...
