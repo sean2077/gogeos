@@ -1,0 +1,30 @@
+# semantic-release 配置 https://github.com/semantic-release/semantic-release/blob/master/docs/usage/configuration.md#options
+
+# 发布分支
+branches:
+  - master # 正式发布
+  - next # 新的重大更改的版本
+  - name: dev # 开发分支
+    prerelease: "true"
+  - name: alpha # 预发布
+    prerelease: "true"
+  - name: beta # 预发布
+    prerelease: "true"
+
+# 插件
+plugins:
+  - - "@semantic-release/commit-analyzer"
+    - preset: conventionalcommits # commit 风格 https://github.com/semantic-release/commit-analyzer#release-rules
+  - "@semantic-release/release-notes-generator"
+  - - "@semantic-release/changelog"
+    - changelogFile: CHANGELOG.md
+  - - "@semantic-release/git"
+    - assets:
+        - CHANGELOG.md
+        - Makefile
+        - README.md
+      message: |-
+        chore(release): ${nextRelease.version}
+
+        ${nextRelease.notes}
+  - "@semantic-release/github"
