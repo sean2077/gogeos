@@ -52,5 +52,4 @@ jobs:
           files: coverage.txt
           fail_ci_if_error: true
           name: Codecov
-          path_to_write_report: coverage.txt
           verbose: true
