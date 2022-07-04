@@ -945,3 +945,65 @@ func (g *Geometry) simplify(name string, cfn func(*C.GEOSGeometry, C.double) *C.
 ) {
 	return geomFromC(name, cfn(g.g, C.double(d)))
 }
+
+type Bounds struct {
+	MinX float64
+	MinY float64
+	MaxX float64
+	MaxY float64
+}
+
+var NilBounds = Bounds{1e20, 1e20, -1e20, -1e20}
+
+// Bounds returns (minx, miny, maxx, maxy) that bounds the object.
+func (g *Geometry) Bounds() (Bounds, error) {
+	geom, err := g.Envelope()
+	if err != nil {
+		return NilBounds, Error()
+	}
+
+	s, err := geom.Shell()
+	if err != nil {
+		return NilBounds, Error()
+	}
+	c, err := s.Coords()
+	if err != nil {
+		return NilBounds, Error()
+	}
+
+	minx := 1.e+20
+	maxx := -1e+20
+	miny := 1.e+20
+	maxy := -1e+20
+
+	for _, cd := range c {
+		if cd.X < minx {
+			minx = cd.X
+		}
+		if cd.X > maxx {
+			maxx = cd.X
+		}
+
+		if cd.Y < miny {
+			miny = cd.Y
+		}
+		if cd.Y > maxy {
+			maxy = cd.Y
+		}
+	}
+
+	return Bounds{minx, miny, maxx, maxy}, nil
+}
+
+// Polygonize polygonizes a set of Geometries which contain linework that
+// represents the edges of a planar graph.
+func Polygonize(lines []*Geometry) (*Geometry, error) {
+	ptrs := make([]*C.GEOSGeometry, len(lines))
+	for i := range lines {
+		ptrs[i] = lines[i].g
+		// The ownership of the component geometries becomes that of the new
+		// collection geometry
+		runtime.SetFinalizer(lines[i], nil)
+	}
+	return geomFromC("Polygonize", cGEOSPolygonize(ptrs, C.uint(len(ptrs))))
+}

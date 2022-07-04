@@ -1095,3 +1095,90 @@ func TestGeometry_IsValid(t *testing.T) {
 		)
 	}
 }
+
+func TestBounds(t *testing.T) {
+	testPolygon := "POLYGON((17672.0337 9338.1706,17685.6852 9298.5111,17749.098 9319.1397,17742.66 9339.25,17738.74 9342.61,17735.94 9342.4,17732.42 9340.1,17731.2 9340.32,17729.03 9341.35,17720.35 9348.95,17716.3509 9352.6934,17672.0337 9338.1706))"
+	exampleBounds := Bounds{MinX: 17672.0337, MinY: 9298.5111, MaxX: 17749.098, MaxY: 9352.6934}
+	p, err := FromWKT(testPolygon)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bt, err := p.Bounds()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if bt != exampleBounds {
+		t.Errorf("Bounds are not equal %v != %v", bt, exampleBounds)
+	}
+}
+
+func TestPolygonize(t *testing.T) {
+	tests := []struct {
+		input   []string
+		want    []string
+		wantErr bool
+	}{
+		{
+			input: []string{
+				"LINESTRING EMPTY",
+				"LINESTRING EMPTY",
+			},
+			want: []string{
+			},
+			wantErr: false,
+		},
+		{
+			input: []string{
+				"LINESTRING (100 180, 20 20, 160 20, 100 180)",
+				"LINESTRING (100 180, 80 60, 120 60, 100 180)",
+			},
+			want: []string{
+				"POLYGON ((100 180, 160 20, 20 20, 100 180), (100 180, 80 60, 120 60, 100 180))",
+				"POLYGON ((100 180, 120 60, 80 60, 100 180))",
+			},
+			wantErr: false,
+		},
+		{
+			input: []string{
+				"LINESTRING (0 0, 4 0)",
+				"LINESTRING (4 0, 5 3)",
+				"LINESTRING (5 3, 4 6, 6 6, 5 3)",
+				"LINESTRING (5 3, 6 0)",
+				"LINESTRING (6 0, 10 0, 5 10, 0 0)",
+				"LINESTRING (4 0, 6 0)",
+			},
+			want: []string{
+				"POLYGON ((5 3, 4 0, 0 0, 5 10, 10 0, 6 0, 5 3), (5 3, 6 6, 4 6, 5 3))",
+				"POLYGON ((4 0, 5 3, 6 0, 4 0))",
+				"POLYGON ((5 3, 4 6, 6 6, 5 3))",
+			},
+			wantErr: false,
+		},
+	}
+	for i, tt := range tests {
+		t.Run(
+			fmt.Sprintf("case%d", i), func(t *testing.T) {
+				var input []*Geometry
+				for _, wkt := range tt.input {
+					g, _ := FromWKT(wkt)
+					input = append(input, g)
+				}
+				var want []*Geometry
+				for _, wkt := range tt.want {
+					g, _ := FromWKT(wkt)
+					want = append(want, g)
+				}
+				got, err := Polygonize(input)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("Polygonize() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if equal, err := compare(got, want); err != nil || !equal {
+					t.Errorf("Polygonize() got = %v, want %v", got, want)
+				}
+			},
+		)
+	}
+}
