@@ -1135,8 +1135,8 @@ func TestPolygonize(t *testing.T) {
 				"LINESTRING (100 180, 80 60, 120 60, 100 180)",
 			},
 			want: []string{
-				"POLYGON ((100 180, 120 60, 80 60, 100 180))",
 				"POLYGON ((100 180, 160 20, 20 20, 100 180), (100 180, 80 60, 120 60, 100 180))",
+				"POLYGON ((100 180, 120 60, 80 60, 100 180))",
 			},
 			wantErr: false,
 		},
@@ -1151,8 +1151,8 @@ func TestPolygonize(t *testing.T) {
 			},
 			want: []string{
 				"POLYGON ((5 3, 4 0, 0 0, 5 10, 10 0, 6 0, 5 3), (5 3, 6 6, 4 6, 5 3))",
-				"POLYGON ((5 3, 4 6, 6 6, 5 3))",
 				"POLYGON ((4 0, 5 3, 6 0, 4 0))",
+				"POLYGON ((5 3, 4 6, 6 6, 5 3))",
 			},
 			wantErr: false,
 		},
@@ -1165,19 +1165,18 @@ func TestPolygonize(t *testing.T) {
 					g, _ := FromWKT(wkt)
 					input = append(input, g)
 				}
-				var wants []*Geometry
+				var want []*Geometry
 				for _, wkt := range tt.want {
 					g, _ := FromWKT(wkt)
-					wants = append(wants, g)
+					want = append(want, g)
 				}
-				want, _ := NewCollection(MULTIPOLYGON, wants...)
 				got, err := Polygonize(input)
 				if (err != nil) != tt.wantErr {
 					t.Errorf("Polygonize() error = %v, wantErr %v", err, tt.wantErr)
 					return
 				}
-				if equal, err := got.Equals(want); err != nil || !equal {
-					t.Errorf("Polygonize() got = %v, want %v", got, tt.want)
+				if equal, err := compare(got, want); err != nil || !equal {
+					t.Errorf("Polygonize() got = %v, want %v", got, want)
 				}
 			},
 		)
