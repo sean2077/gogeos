@@ -1113,3 +1113,73 @@ func TestBounds(t *testing.T) {
 		t.Errorf("Bounds are not equal %v != %v", bt, exampleBounds)
 	}
 }
+
+func TestPolygonize(t *testing.T) {
+	tests := []struct {
+		input   []string
+		want    []string
+		wantErr bool
+	}{
+		{
+			input: []string{
+				"LINESTRING EMPTY",
+				"LINESTRING EMPTY",
+			},
+			want: []string{
+			},
+			wantErr: false,
+		},
+		{
+			input: []string{
+				"LINESTRING (100 180, 20 20, 160 20, 100 180)",
+				"LINESTRING (100 180, 80 60, 120 60, 100 180)",
+			},
+			want: []string{
+				"POLYGON ((100 180, 120 60, 80 60, 100 180))",
+				"POLYGON ((100 180, 160 20, 20 20, 100 180), (100 180, 80 60, 120 60, 100 180))",
+			},
+			wantErr: false,
+		},
+		{
+			input: []string{
+				"LINESTRING (0 0, 4 0)",
+				"LINESTRING (4 0, 5 3)",
+				"LINESTRING (5 3, 4 6, 6 6, 5 3)",
+				"LINESTRING (5 3, 6 0)",
+				"LINESTRING (6 0, 10 0, 5 10, 0 0)",
+				"LINESTRING (4 0, 6 0)",
+			},
+			want: []string{
+				"POLYGON ((5 3, 4 0, 0 0, 5 10, 10 0, 6 0, 5 3), (5 3, 6 6, 4 6, 5 3))",
+				"POLYGON ((5 3, 4 6, 6 6, 5 3))",
+				"POLYGON ((4 0, 5 3, 6 0, 4 0))",
+			},
+			wantErr: false,
+		},
+	}
+	for i, tt := range tests {
+		t.Run(
+			fmt.Sprintf("case%d", i), func(t *testing.T) {
+				var input []*Geometry
+				for _, wkt := range tt.input {
+					g, _ := FromWKT(wkt)
+					input = append(input, g)
+				}
+				var wants []*Geometry
+				for _, wkt := range tt.want {
+					g, _ := FromWKT(wkt)
+					wants = append(wants, g)
+				}
+				want, _ := NewCollection(MULTIPOLYGON, wants...)
+				got, err := Polygonize(input)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("Polygonize() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if equal, err := got.Equals(want); err != nil || !equal {
+					t.Errorf("Polygonize() got = %v, want %v", got, tt.want)
+				}
+			},
+		)
+	}
+}

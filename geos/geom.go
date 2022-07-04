@@ -994,3 +994,16 @@ func (g *Geometry) Bounds() (Bounds, error) {
 
 	return Bounds{minx, miny, maxx, maxy}, nil
 }
+
+// Polygonize polygonizes a set of Geometries which contain linework that
+// represents the edges of a planar graph.
+func Polygonize(lines []*Geometry) (*Geometry, error) {
+	ptrs := make([]*C.GEOSGeometry, len(lines))
+	for i := range lines {
+		ptrs[i] = lines[i].g
+		// The ownership of the component geometries becomes that of the new
+		// collection geometry
+		runtime.SetFinalizer(lines[i], nil)
+	}
+	return geomFromC("Polygonize", cGEOSPolygonize(ptrs, C.uint(len(ptrs))))
+}
