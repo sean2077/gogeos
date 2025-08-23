@@ -1,3 +1,3 @@
-module github.com/zhangxianbing/gogeos
+module github.com/sean2077/gogeos
 
 go 1.15

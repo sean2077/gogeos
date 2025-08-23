@@ -14,7 +14,7 @@ import (
 
 	"code.google.com/p/draw2d/draw2d"
 
-	"github.com/zhangxianbing/gogeos/geos"
+	"github.com/sean2077/gogeos/geos"
 )
 
 const (

@@ -3,7 +3,7 @@ gogeos - Go library for spatial data operations and geometric algorithms
 
 Fork from: <https://github.com/paulsmith/gogeos>
 
-[![codecov](https://codecov.io/gh/zhangxianbing/gogeos/branch/master/graph/badge.svg?token=44LRHVFRPU)](https://codecov.io/gh/zhangxianbing/gogeos)
+[![codecov](https://codecov.io/gh/sean2077/gogeos/branch/master/graph/badge.svg?token=44LRHVFRPU)](https://codecov.io/gh/sean2077/gogeos)
 
 gogeos is a library for Go that provides operations on spatial data and
 geometric algorithms.
@@ -19,7 +19,7 @@ package main
 import (
  "fmt"
 
- "github.com/zhangxianbing/gogeos/geos"
+ "github.com/sean2077/gogeos/geos"
 )
 
 func main() {
@@ -48,8 +48,8 @@ gogeos is an open source project.
 
 ### Community
 
-* [Source code: GitHub project](https://github.com/zhangxianbing/gogeos)
-* [Issues tracker](https://github.com/zhangxianbing/gogeos/issues)
+* [Source code: GitHub project](https://github.com/sean2077/gogeos)
+* [Issues tracker](https://github.com/sean2077/gogeos/issues)
 * [Mailing list: gogeos@googlegroups.com](https://groups.google.com/forum/?fromgroups#!forum/gogeos)
 * [IRC: #gogeos on freenode](irc://irc.freenode.net/gogeos)
 
@@ -88,14 +88,14 @@ sudo make install
 ### Installing gogeos
 
 ```bash
-go get github.com/zhangxianbing/gogeos/geos
+go get github.com/sean2077/gogeos/geos
 ```
 
 Documentation
 -------------
 
 * [Main gogeos documentation](http://paulsmith.github.io/gogeos/)
-* [godoc](http://godoc.org/github.com/zhangxianbing/gogeos/geos)
+* [godoc](http://godoc.org/github.com/sean2077/gogeos/geos)
 
 Example
 -------
